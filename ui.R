@@ -317,6 +317,15 @@ shinyUI(
       page_navbar(
         theme = bs_theme(version = 5, bootswatch = "sandstone"),
         title = "ICARDA FIGS",
+        tags$head(
+          tags$script(
+            HTML('$(document).ready(function() {
+                       $(".navbar .container-fluid")
+                         .append("<img id = \'logo\' src=\'./images/icarda_logo.svg\' align=\'right\' height = \'57.5px\'>"  );
+                      });')),
+          tags$style(
+            HTML('@media (max-width:992px) { #logo { position: fixed; right: 10%; top: 0.5%; }}')
+          )),
         fillable = c("2,3"),
                  id = "tabs",
                  collapsible = TRUE,
