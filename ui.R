@@ -313,7 +313,12 @@ trait_accordions <- list(
   accordion_panel(
     value = "traitMissing",
     "Missing Data",
-    uiOutput("trait.missing")
+    h4("IGs with no recorded data for this trait"),
+    uiOutput("missingSummary"),
+    DTOutput("missingTable"),
+    br(),
+    downloadButton("downloadMissing", "⬇️ Download Missing IGs")
+    #uiOutput("trait.missing")
   ),
   accordion_panel(
     value = "traitDataSum",

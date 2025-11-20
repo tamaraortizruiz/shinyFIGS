@@ -1057,6 +1057,53 @@ function(input, output, session) {
       # else cummulativePerYear(filteredFactorData(), accessions)
     })
     
+    # ---- Missing Data (IGs without trait records) ----
+    missingData <- reactive({
+      #req(traitData(), input$years)
+      req(rv$traitsData)
+      
+      # trait_filtered <- traitData() %>%
+      #   filter(YEAR %in% input$years) %>%
+      #   dplyr::select(IG) %>%
+      #   distinct()
+      
+      missing_igs <- rv$datasetInput %>%
+        filter(!IG %in% rv$traitsData$IG)
+      
+      return(missing_igs)
+    })
+    
+    output$missingTable <- renderDT({
+      req(missingData())
+      datatable(
+        missingData(),
+        options = list(pageLength = 10, scrollX = TRUE),
+        caption = htmltools::tags$caption(
+          style = 'caption-side: top; text-align: left;',
+          paste("Accessions missing data for trait:", input$traitName)
+        )
+      )
+    })
+    
+    output$downloadMissing <- downloadHandler(
+      filename <- function() {
+        paste0("Missing_", rv$crop, "_IGs_Trait_",  rv$field.name, "_", Sys.Date(), ".csv")
+      },
+      content <- function(file) {
+        write.csv(missingData(), file, row.names = FALSE)
+      }
+    )
+    
+    output$missingSummary <- renderUI({
+      req(missingData())
+      n <- nrow(missingData())
+      total <- nrow(rv$datasetInput)
+      percent <- round(n / total * 100, 2)
+      
+      div(class = "alert alert-info",
+          paste("There are", n, "accessions (", percent, "% ) with no trait data."))
+    })
+    
     #map traits summary
     #observe({
     output$traitMap <- leaflet::renderLeaflet({
