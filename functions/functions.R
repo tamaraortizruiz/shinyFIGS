@@ -402,8 +402,8 @@ traitSummary <- function(df, ig_trait = NULL) {
   safe_trait <- gsub("[^A-Za-z0-9]", "_", trait) #remove special characters
   
   trait_summary <- df %>%
-    group_by(YEAR) %>%
-    summarise(
+    dplyr::group_by(YEAR) %>%
+    dplyr::summarise(
       mean = mean(.data[[trait]], na.rm = TRUE),
       sd  = sd(.data[[trait]]),
       min  = min(.data[[trait]]),
@@ -496,9 +496,9 @@ traitSummary <- function(df, ig_trait = NULL) {
 summaryPerYearF <- function(df, accessions){
   # unique IGs per year + coverage
   summary_year <- df %>%
-    group_by(YEAR) %>%
-    summarise(
-      n_igs = n_distinct(IG),
+    dplyr::group_by(YEAR) %>%
+    dplyr::summarise(
+      n_igs = dplyr::n_distinct(IG),
       coverage = n_igs / nrow(accessions) * 100,
       .groups = "drop"
     )
@@ -515,17 +515,17 @@ summaryPerYearF <- function(df, accessions){
 cummulativePerYearF <- function(df, accessions){
   # cumulative coverage by year
   coverage_cum <- df %>%
-    arrange(YEAR, IG) %>%
-    distinct(YEAR, IG) %>%
-    mutate(first_seen = !duplicated(IG)) %>%
-    group_by(YEAR) %>%
-    summarise(new_igs = sum(first_seen), .groups = "drop") %>%
-    mutate(
+    dplyr::arrange(YEAR, IG) %>%
+    dplyr::distinct(YEAR, IG) %>%
+    dplyr::mutate(first_seen = !duplicated(IG)) %>%
+    dplyr::group_by(YEAR) %>%
+    dplyr::summarise(new_igs = sum(first_seen), .groups = "drop") %>%
+    dplyr::mutate(
       cum_igs = cumsum(new_igs),
       coverage_cum = 100 * cum_igs / nrow(accessions)
     )
   coverage_cum <- coverage_cum %>%
-    mutate(YEAR = factor(YEAR))
+    dplyr::mutate(YEAR = factor(YEAR))
   
   # as bar
   barPlot <- ggplot(coverage_cum, aes(x = factor(YEAR))) +
@@ -547,23 +547,47 @@ cummulativePerYearF <- function(df, accessions){
   return(ggplotly(barPlot, tooltip = c("y")))
 }
 
-traitSummaryF <- function(df, traitNumber, factor_trait_info){
+traitSummaryF <- function(df, traitName, factor_trait_info){
   trait <- names(df)[12]
   
   # Histogram of trait values
   histPlot <- ggplot(df, aes(x = .data[[trait]])) +
-    geom_bar(fill = "lightblue", color = "black") +
+    geom_bar(aes(text = after_stat(count)),
+             fill = "#FFD580", color ="black") +
     labs(title = paste("Distribution of", trait), x = paste(trait, "Category"), y = "Count") +
     theme_minimal()
   
-  fctrs <- unlist(factor_trait_info$numeric_options[factor_trait_info$ID == traitNumber])
+  fctrs <- unlist(factor_trait_info$numeric_options[factor_trait_info$Trait == traitName])
   df$Value <- ifelse(as.character(df[[12]]) %in% as.character(fctrs),
                      "Available", "Not Available")
   
   # Proportions by group
-  propGroup <- ggplot(df, aes(x = factor(YEAR), fill = factor(.data[[trait]]),
-                              color = Value, linewidth = Value)) +
-    geom_bar(position = "fill") +
+  # Create a df for proportions
+  var_sym <- rlang::sym(trait)
+  
+  df_props <- df %>%
+    dplyr::count(YEAR, !!var_sym, Value, name = "count_segment") %>%
+    dplyr::group_by(YEAR) %>%
+    dplyr::mutate(
+      count_by_year = sum(count_segment)
+    ) %>%
+    dplyr::ungroup() %>%
+    dplyr::mutate(
+      pct = count_segment / count_by_year * 100,
+      tooltip_text = paste0(round(pct, 1), "% (n=", count_segment, ")")
+    )
+  
+  propGroup <- ggplot(df_props, aes(x = factor(YEAR), 
+                                    y = count_segment, 
+                                    fill = factor(.data[[trait]]))) +
+    geom_col(
+      aes(
+        text = tooltip_text,
+        color = Value,
+        linewidth = Value
+      ),
+      position = "fill"
+    ) +
     scale_fill_manual(values = RColorBrewer::brewer.pal(12, "Set3")) +
     scale_color_manual(values = c("Not Available" = "black", "Available" = NA), guide = "none") +
     scale_linewidth_manual(values = c("Not Available" = 0.4, "Available" = 0), guide = "none") +
@@ -575,7 +599,8 @@ traitSummaryF <- function(df, traitNumber, factor_trait_info){
   # Counts by group
   countsGroup <- ggplot(df, aes(x = factor(YEAR), fill = factor(.data[[trait]]), 
                                 color = Value, linewidth = Value)) +
-    geom_bar(position = position_dodge2(preserve = "single")) +
+    geom_bar( aes(text = after_stat(count)),
+      position = position_dodge2(preserve = "single")) +
     scale_fill_manual(values = RColorBrewer::brewer.pal(12, "Set3")) +
     scale_color_manual(values = c("Not Available" = "black", "Available" = NA), 
                        guide = "none") +
@@ -585,9 +610,9 @@ traitSummaryF <- function(df, traitNumber, factor_trait_info){
     theme_minimal() +
     theme(axis.text.x = element_text(angle = 45, hjust = 1, size = 7))
   
-  return(list(histogram = ggplotly(histPlot, tooltip = c("x")),
-              proportionsByGroup = ggplotly(propGroup, tooltip = c("fill")),
-              countsByGroup = ggplotly(countsGroup, tooltip = c("fill"))))
+  return(list(histogram = ggplotly(histPlot, tooltip = c("x", "text")),
+              proportionsByGroup = ggplotly(propGroup, tooltip = c("fill", "text")),
+              countsByGroup = ggplotly(countsGroup, tooltip = c("fill", "text"))))
 }
 
 traitSummaryFFil <- function(df, traitNumber){

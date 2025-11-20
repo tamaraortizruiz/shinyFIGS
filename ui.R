@@ -18,6 +18,7 @@ library(scales)
 library(stringr)
 library(crosstalk)
 library(DT)
+library(rlang)
 
 
 # Load functions
@@ -297,7 +298,10 @@ trait_accordions <- list(
   accordion_panel(
     value = "traitResPlot",
     "Plots",
-    uiOutput("trait.var.val")
+    #uiOutput("trait.var.val"),
+    plotlyOutput("histPlot"),
+    plotlyOutput("boxOrFactorPlot1"),
+    plotlyOutput("boxOrFactorPlot2")
   ),
   accordion_panel(
     value = "traitCoverage",

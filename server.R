@@ -842,8 +842,8 @@ function(input, output, session) {
         res <- traitSummary(rv$traitsData)
         tagList(
           h4("Outlier Accessions"),
-          strong("Maximum Outliers:"), res$maxOutliers, br(),
-          strong("Minimum Outliers:"), res$minOutliers
+          strong("Maximum Outliers (> mean + 3*sd):"), res$maxOutliers, br(),
+          strong("Minimum Outliers (< mean - 3*sd):"), res$minOutliers
         )
       }
     })
@@ -881,89 +881,130 @@ function(input, output, session) {
     })
     
     # ------ Plots -------
-    output$trait.var.val <- renderUI({
+    
+    # output$trait.var.val <- renderUI({
+    #   req(rv$traitsData)
+    #   traitPlts <- list(
+    #     #plotly::plotlyOutput("traitBoxPlot"),
+    #     plotly::plotlyOutput("exptIGFreq"),
+    #     plotly::plotlyOutput("yearIGFreq"),
+    #     #selectInput("year.hist", "Select Year", c("Year" = "")),
+    #     plotly::plotlyOutput("hist.or.barplot")
+    #   )
+    #   do.call(tagList, traitPlts)
+    # })
+    # 
+    # output$exptIGFreq <- plotly::renderPlotly({
+    #   req(rv$traitsData)
+    #   freq.by.expt <- rv$traitsData %>% dplyr::group_by(EXPT) %>% 
+    #                     dplyr::summarize(count_IG=length(unique(IG)))
+    #   
+    #   plotly::plot_ly(freq.by.expt, x = freq.by.expt[['EXPT']], y = ~count_IG, type = 'bar', color = "#ff8103") %>%
+    #     plotly::layout(yaxis = list(title = ""), title = list(text = 'No. of unique IGs per EXPT', y = 0.9))
+    # })
+    # 
+    # output$yearIGFreq <- plotly::renderPlotly({
+    #   req(rv$traitsData)
+    #   freq.by.year <- rv$traitsData %>% dplyr::group_by(YEAR) %>% 
+    #                     dplyr::summarize(count_IG=length(unique(IG)))
+    #   
+    #   plotly::plot_ly(freq.by.year, x = freq.by.year[['YEAR']], y = ~count_IG, type = 'bar', color = "#ff8103") %>%
+    #     plotly::layout(yaxis = list(title = ""), title = list( text = 'No. of unique IGs per year', y = 0.9))
+    #   
+    # })
+    # 
+    # output$hist.or.barplot <- plotly::renderPlotly({
+    #   
+    #   req(rv$traitsData)
+    #   
+    #   if(!rv$isTraitNum){
+    #     
+    #     freq.by.cat <- rv$traitsData %>% dplyr::group_by(across(all_of(rv$field.name))) %>% 
+    #                       dplyr::summarize(count_IG=length(unique(IG))) 
+    #     
+    #     plotly::plot_ly(freq.by.cat, x = freq.by.cat[[rv$field.name]], y = ~count_IG, type = 'bar', color = "#ff8103") %>% 
+    #       plotly::layout(yaxis = list(title = ""), title = list(text = 'No. of unique IGs per category', y = 0.9))
+    #     
+    #     #make frequency graph per experiment
+    #     
+    #   }
+    #   else{
+    #     # histogram by EXPT
+    #     experiments <- rv$traitsData %>%
+    #       dplyr::arrange(-desc(YEAR)) %>%
+    #       dplyr::select(EXPT)
+    #   
+    #     expts <- unique(experiments[["EXPT"]])
+    #   
+    #     plotly::plot_ly(rv$traitsData, x = rv$traitsData[[rv$field.name]],
+    #                   transforms = list(
+    #                     list(
+    #                       type = 'filter',
+    #                       target = ~EXPT,
+    #                       operation = '=',
+    #                       value = expts[1]
+    #                     )),
+    #                   color = "#ff8103") %>%
+    #       plotly::add_histogram() %>%
+    #       plotly::layout(
+    #         xaxis = list(title = rv$traitName),
+    #         yaxis = list(title = "No. of accessions"),
+    #         updatemenus = list(
+    #           list(
+    #             x = 0.1,
+    #             y = 1.07,
+    #             xref = 'paper',
+    #             yref = 'paper',
+    #             yanchor = 'top',
+    #             type = 'dropdown',
+    #             active = 0,
+    #             buttons = create_buttons(expts)
+    #           )
+    #         ))
+    #   }
+    #   #make histogram of summaries
+    # })
+    
+    output$histPlot <- renderPlotly({
       req(rv$traitsData)
-      traitPlts <- list(
-        #plotly::plotlyOutput("traitBoxPlot"),
-        plotly::plotlyOutput("exptIGFreq"),
-        plotly::plotlyOutput("yearIGFreq"),
-        #selectInput("year.hist", "Select Year", c("Year" = "")),
-        plotly::plotlyOutput("hist.or.barplot")
-      )
-      do.call(tagList, traitPlts)
+      df <- rv$traitsData
+      if (nrow(df) == 0) return(NULL)
+      withProgress(message = "Creating histogram...", {
+        if (rv$isTraitNum) {
+            traitSummary(df)$histogram
+        } else {
+            traitSummaryF(rv$traitsData, input$traitName, rv$factor_trait_info)$histogram
+        }
+      })
     })
     
-    output$exptIGFreq <- plotly::renderPlotly({
+    output$boxOrFactorPlot1 <- renderPlotly({
       req(rv$traitsData)
-      freq.by.expt <- rv$traitsData %>% dplyr::group_by(EXPT) %>% 
-                        dplyr::summarize(count_IG=length(unique(IG)))
+      df <- rv$traitsData
+      if (nrow(df) == 0) return(NULL)
       
-      plotly::plot_ly(freq.by.expt, x = freq.by.expt[['EXPT']], y = ~count_IG, type = 'bar', color = "#ff8103") %>%
-        plotly::layout(yaxis = list(title = ""), title = list(text = 'No. of unique IGs per EXPT', y = 0.9))
-    })
-    
-    output$yearIGFreq <- plotly::renderPlotly({
-      req(rv$traitsData)
-      freq.by.year <- rv$traitsData %>% dplyr::group_by(YEAR) %>% 
-                        dplyr::summarize(count_IG=length(unique(IG)))
       
-      plotly::plot_ly(freq.by.year, x = freq.by.year[['YEAR']], y = ~count_IG, type = 'bar', color = "#ff8103") %>%
-        plotly::layout(yaxis = list(title = ""), title = list( text = 'No. of unique IGs per year', y = 0.9))
-      
-    })
-    
-    output$hist.or.barplot <- plotly::renderPlotly({
-      
-      req(rv$traitsData)
-      
-      if(!rv$isTraitNum){
-        
-        freq.by.cat <- rv$traitsData %>% dplyr::group_by(across(all_of(rv$field.name))) %>% 
-                          dplyr::summarize(count_IG=length(unique(IG))) 
-        
-        plotly::plot_ly(freq.by.cat, x = freq.by.cat[[rv$field.name]], y = ~count_IG, type = 'bar', color = "#ff8103") %>% 
-          plotly::layout(yaxis = list(title = ""), title = list(text = 'No. of unique IGs per category', y = 0.9))
-        
-        #make frequency graph per experiment
-        
+      if (rv$isTraitNum) {
+        withProgress(message = "Creating boxplot...", {
+          traitSummary(df)$boxplot
+        })
+      } else {
+        withProgress(message = "Creating proportions plot...", {
+          traitSummaryF(rv$traitsData, input$traitName, rv$factor_trait_info)$proportionsByGroup
+        })
       }
-      else{
-        
-        # histogram by EXPT
-        experiments <- rv$traitsData %>%
-          dplyr::arrange(-desc(YEAR)) %>%
-          dplyr::select(EXPT)
+    })
+    
+    output$boxOrFactorPlot2 <- renderPlotly({
+      req(rv$traitsData)
+      df <- rv$traitsData
+      if (nrow(df) == 0) return(NULL)
       
-        expts <- unique(experiments[["EXPT"]])
-      
-        plotly::plot_ly(rv$traitsData, x = rv$traitsData[[rv$field.name]],
-                      transforms = list(
-                        list(
-                          type = 'filter',
-                          target = ~EXPT,
-                          operation = '=',
-                          value = expts[1]
-                        )),
-                      color = "#ff8103") %>%
-          plotly::add_histogram() %>%
-          plotly::layout(
-            xaxis = list(title = rv$traitName),
-            yaxis = list(title = "No. of accessions"),
-            updatemenus = list(
-              list(
-                x = 0.1,
-                y = 1.07,
-                xref = 'paper',
-                yref = 'paper',
-                yanchor = 'top',
-                type = 'dropdown',
-                active = 0,
-                buttons = create_buttons(expts)
-              )
-            ))
+      if (!rv$isTraitNum) {
+        withProgress(message = "Getting trait counts by year...", {
+          traitSummaryF(rv$traitsData, input$traitName, rv$factor_trait_info)$countsByGroup
+        })
       }
-      #make histogram of summaries
-      
     })
     
     
