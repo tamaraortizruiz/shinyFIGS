@@ -695,7 +695,7 @@ function(input, output, session) {
     })
     
     observeEvent(input$getTraits,{
-      withProgress(message = "Getting Traits ...", {
+      withProgress(message = "Getting Traits...", {
         rv$traits <- icardaFIGSr::getTraits(rv$crop)
       })
       accordion_panel_open(id="trait_accd", values="traitTable", session = session)
@@ -707,7 +707,7 @@ function(input, output, session) {
     })
     
     observeEvent(input$getTraitsData, {
-      withProgress(message = "Getting Traits Data ...", {
+      withProgress(message = "Getting Traits Data...", {
         traitId <- rv$traits[rv$traits$Trait == input$traitName, 'ID']
         traitsData <- icardaFIGSr::getTraitsData(IG = rv$datasetInput[[input$IG.Trait]], traitID = as.numeric(traitId))
         
@@ -720,13 +720,17 @@ function(input, output, session) {
         rv$traitsData[['YEAR']] = as.factor(rv$traitsData[['YEAR']])
         rv$field.name <- as.character(rv$traits[rv$traits$Trait == input$traitName, 'Field Name'])
         
-        if(is.na(rv$traits[rv$traits$Trait == input$traitName, 'Options'])) 
+        if(is.na(rv$traits[rv$traits$Trait == input$traitName, 'Options'])){
           rv$isTraitNum = TRUE
-        else rv$isTraitNum = FALSE
-        if(!rv$isTraitNum){
+          rv$traitsData[[rv$field.name]] <- as.numeric(rv$traitsData[[rv$field.name]])
+        }
+          
+        else {
+          rv$isTraitNum = FALSE
           last_column = colnames(rv$traitsData)[length(colnames(rv$traitsData))]
           rv$traitsData[[last_column]] = factor(rv$traitsData[[last_column]])
         }
+
       })
       accordion_panel_open(id="trait_accd", values="traitDataTable", session = session)
     })
@@ -1191,7 +1195,7 @@ function(input, output, session) {
         
         DT::datatable(rv$traitSummaryperAcc,
                       rownames = FALSE,
-                      filter = list(position = "top", clear = FALSE),
+                      filter = list(position = "top", clear = FALSE, types = c('select', 'range')),
                       extensions = 'Buttons',
                       options = list(scrollX = TRUE,
                                      dom = "Bfrtip",
@@ -1201,8 +1205,8 @@ function(input, output, session) {
                                        buttons = list(
                                          list(extend = 'csv', filename = paste0(rv$crop,"_",input$traitName,"_summary")),
                                          list(extend = 'excel', filename = paste0(rv$crop,"_",input$traitName,"_summary"))),
-                                       text = 'Download')),
-                                     columnDefs = list(list(targets = 1, searchable = FALSE))))
+                                       text = 'Download'))
+                                     ))
       })
       
     })
