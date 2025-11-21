@@ -772,6 +772,74 @@ function(input, output, session) {
       }
     })
     
+    # ---- Dynamic filter options ----
+    output$yearFilter <- renderUI({
+      req(rv$traitsData)
+      years <- sort(unique(rv$traitsData$YEAR))
+      pickerInput("years", "Select Years:", choices = years,
+                  selected = years, multiple = TRUE,
+                  options = list(`actions-box` = TRUE))
+    })
+    
+    output$populationFilter <- renderUI({
+      pops <- sort(unique(rv$datasetInput$PopulationType))
+      pickerInput("populations", "Select Population Types:", choices = pops,
+                  selected = pops, multiple = TRUE,
+                  options = list(`actions-box` = TRUE))
+    })
+    
+    # ---- Filtered dataset ----
+    filteredData <- reactive({
+      req(rv$traitsData, input$years, input$populations)
+      df <- rv$traitsData
+      
+      # Detect whether ALL years + ALL populations + geoOnly OFF  
+      all_years_selected  <- identical(sort(input$years), sort(unique(rv$traitsData$YEAR)))
+      all_pops_selected   <- identical(sort(input$populations), sort(unique(rv$datasetInput$PopulationType)))
+      geo_is_off          <- !isTRUE(input$geoOnly)
+      
+      if (all_years_selected && all_pops_selected && geo_is_off) {
+        return(df) # returns full trait data
+      }
+      
+      df <- df %>% filter(YEAR %in% input$years)
+      
+      acc_filt <- rv$datasetInput
+      
+      if (!all_pops_selected) {
+        acc_filt <- acc_filt %>% dplyr::filter(PopulationType %in% input$populations)
+      }
+      
+      if (isTRUE(input$geoOnly)) {
+        acc_filt <- acc_filt %>% dplyr::filter(!is.na(Longitude) & !is.na(Latitude))
+      }
+      
+      if(rv$isTraitNum)
+        filteredData()[[rv$field.name]] <- as.numeric(filteredData()[[rv$field.name]])
+      
+      df[["IG"]] <- factor(df[["IG"]])
+      df <- df %>% dplyr::left_join(acc_filt, by = "IG")
+      
+      df
+    })
+    
+    filteredFactorData <- reactive({
+      req(!rv$isTraitNum, filteredData())
+      
+      df <- filteredData()
+      #trait_num <- as.numeric(rv$field.name)
+      #valid_opts <- unlist(factor_trait_info$numeric_options[factor_trait_info$ID == trait_num])
+      valid_opts <- unlist(rv$factor_trait_info$numeric_options[rv$factor_trait_info$Trait == input$traitName])
+      trait_col <- names(df)[12]
+      
+      # If checkbox selected, keep only valid options
+      if (isTRUE(input$filterFactorInvalids)) {
+        df <- df %>% dplyr::filter(as.character(.data[[trait_col]]) %in% as.character(valid_opts))
+      }
+      
+      df
+    })
+    
     # ---- Missing Data (IGs without trait records) ----
     missingData <- reactive({
       req(rv$traitsData)
@@ -826,20 +894,20 @@ function(input, output, session) {
     
     # ---------- Outliers ---------
     output$traitSummaryUI <- renderUI({
-      req(rv$traitsData)
+      req(rv$isTraitNum, filteredData())
       if (rv$isTraitNum) {
         withProgress(message = "Getting mean, sd, min and max...", {
-          rv$traitsData[[rv$field.name]] <- as.numeric(rv$traitsData[[rv$field.name]])
-          res <- traitSummary(rv$traitsData)
+          #filteredData()[[rv$field.name]] <- as.numeric(filteredData()[[rv$field.name]])
+          res <- traitSummary(filteredData())
           res$traitSummary
         })
       }
     })
     
     output$outlierTables <- renderUI({
-      req(rv$traitsData)
+      req(rv$isTraitNum, filteredData())
       if (rv$isTraitNum) {
-        res <- traitSummary(rv$traitsData)
+        res <- traitSummary(filteredData())
         tagList(
           h4("Outlier Accessions"),
           strong("Maximum Outliers (> mean + 3*sd):"), res$maxOutliers, br(),
@@ -850,12 +918,12 @@ function(input, output, session) {
     
     # ---- Factor invalid entries ----
     output$factorInvalidTable <- renderUI({
-      req(rv$traitsData)
+      req(!rv$isTraitNum, filteredData())
       if (!rv$isTraitNum) {
         #trait_num <- as.numeric(input$traitName)
         #traitId <- rv$traits[rv$traits$Trait == input$traitName, 'ID']
         valid_opts <- unlist(rv$factor_trait_info$numeric_options[rv$factor_trait_info$Trait == input$traitName])
-        df <- rv$traitsData
+        df <- filteredData()
         trait_col <- names(df)[12]
         
         invalid_rows <- df %>%
@@ -966,21 +1034,21 @@ function(input, output, session) {
     # })
     
     output$histPlot <- renderPlotly({
-      req(rv$traitsData)
-      df <- rv$traitsData
+      req(filteredData())
+      df <- filteredData()
       if (nrow(df) == 0) return(NULL)
       withProgress(message = "Creating histogram...", {
         if (rv$isTraitNum) {
             traitSummary(df)$histogram
         } else {
-            traitSummaryF(rv$traitsData, input$traitName, rv$factor_trait_info)$histogram
+            traitSummaryF(filteredFactorData(), input$traitName, rv$factor_trait_info)$histogram
         }
       })
     })
     
     output$boxOrFactorPlot1 <- renderPlotly({
-      req(rv$traitsData)
-      df <- rv$traitsData
+      req(filteredData())
+      df <- filteredData()
       if (nrow(df) == 0) return(NULL)
       
       
@@ -990,85 +1058,53 @@ function(input, output, session) {
         })
       } else {
         withProgress(message = "Creating proportions plot...", {
-          traitSummaryF(rv$traitsData, input$traitName, rv$factor_trait_info)$proportionsByGroup
+          traitSummaryF(filteredFactorData(), input$traitName, rv$factor_trait_info)$proportionsByGroup
         })
       }
     })
     
     output$boxOrFactorPlot2 <- renderPlotly({
-      req(rv$traitsData)
-      df <- rv$traitsData
+      req(filteredData())
+      df <- filteredData()
       if (nrow(df) == 0) return(NULL)
       
       if (!rv$isTraitNum) {
         withProgress(message = "Getting trait counts by year...", {
-          traitSummaryF(rv$traitsData, input$traitName, rv$factor_trait_info)$countsByGroup
+          traitSummaryF(filteredFactorData(), input$traitName, rv$factor_trait_info)$countsByGroup
         })
       }
     })
     
-    
-    # ------ Summaries per accession (frequent value for coded traits and average for numeric traits) --------
-    output$TraitDataSum <- DT::renderDataTable(server = FALSE, {
-      req(rv$traitsData)
-      withProgress(message = "Calculating summary values ...", {
-        if(rv$isTraitNum){
-          rv$traitSummaryperAcc <- rv$traitsData %>% group_by(IG) %>% summarise(across(rv$field.name, mean)) %>% mutate_at(rv$field.name, funs(round(., 2)))
-        }
-        
-        else{
-          rv$traitSummaryperAcc <- rv$traitsData %>% group_by(IG) %>% summarise(across(rv$field.name, max.frequency)) %>% mutate(across(where(is.character), as.factor))
-        }
-        
-        DT::datatable(rv$traitSummaryperAcc,
-                      rownames = FALSE,
-                      filter = list(position = "top", clear = FALSE),
-                      extensions = 'Buttons',
-                      options = list(scrollX = TRUE,
-                                     dom = "Bfrtip",
-                                     pageLength = 10,
-                                     buttons = list(list(
-                                       extend = "collection",
-                                       buttons = list(
-                                         list(extend = 'csv', filename = paste0(rv$crop,"_",input$traitName,"_summary")),
-                                         list(extend = 'excel', filename = paste0(rv$crop,"_",input$traitName,"_summary"))),
-                                       text = 'Download')),
-                                     columnDefs = list(list(targets = 1, searchable = FALSE))))
-      })
-      
-    })
-    
     # ---- Coverage plots ----
     output$summaryYearPlot <- renderPlotly({
-      req(rv$traitsData)
-      df <- rv$traitsData
+      req(filteredData())
+      df <- filteredData()
       if (nrow(df) == 0) return(NULL)
-        summaryPerYear(df, rv$datasetInput)
-      # if (rv$isTraitNum) summaryPerYear(df, rv$datasetInput)
-      # else summaryPerYear(filteredFactorData(), rv$datasetInput)
+      #summaryPerYear(df, rv$datasetInput)
+      if (rv$isTraitNum) summaryPerYear(df, rv$datasetInput)
+      else summaryPerYear(filteredFactorData(), rv$datasetInput)
     })
     
     output$cumulativePlot <- renderPlotly({
-      req(rv$traitsData)
-      df <- rv$traitsData
+      req(filteredData())
+      df <- filteredData()
       if (nrow(df) == 0) return(NULL)
-        cummulativePerYear(df, rv$datasetInput)
-      # if (traitType() == "numeric") cummulativePerYear(df, accessions)
-      # else cummulativePerYear(filteredFactorData(), accessions)
+      #cummulativePerYear(df, rv$datasetInput)
+      if (rv$isTraitNum) cummulativePerYear(df, rv$datasetInput)
+      else cummulativePerYear(filteredFactorData(), rv$datasetInput)
     })
     
     # ---- Missing Data (IGs without trait records) ----
     missingData <- reactive({
-      #req(traitData(), input$years)
-      req(rv$traitsData)
+      req(rv$traitsData, input$years)
       
-      # trait_filtered <- traitData() %>%
-      #   filter(YEAR %in% input$years) %>%
-      #   dplyr::select(IG) %>%
-      #   distinct()
+      trait_filtered <- rv$traitsData %>%
+        dplyr::filter(YEAR %in% input$years) %>%
+        dplyr::select(IG) %>%
+        distinct()
       
       missing_igs <- rv$datasetInput %>%
-        filter(!IG %in% rv$traitsData$IG)
+        dplyr::filter(!IG %in% trait_filtered$IG)
       
       return(missing_igs)
     })
@@ -1101,7 +1137,52 @@ function(input, output, session) {
       percent <- round(n / total * 100, 2)
       
       div(class = "alert alert-info",
-          paste("There are", n, "accessions (", percent, "% ) with no trait data."))
+          paste("There are", n, "accessions (", percent, "% ) with no ", rv$field.name," trait data."))
+    })
+    
+    output$downloadFiltered <- downloadHandler(
+      filename <- function() {
+        paste0("Filtered_Trait_", rv$field.name, "_", rv$crop, "_", Sys.Date(), ".csv")
+      },
+      content <- function(file) {
+        write.csv(filteredData(), file, row.names = FALSE)
+      }
+    )
+    
+    # ------ Summaries per accession (frequent value for coded traits and average for numeric traits) --------
+    output$TraitDataSum <- DT::renderDataTable(server = FALSE, {
+      req(rv$traitsData)
+      withProgress(message = "Calculating summary values ...", {
+        if(rv$isTraitNum){
+          rv$traitSummaryperAcc <- rv$traitsData %>% 
+                                      dplyr::group_by(IG) %>%
+                                      dplyr::summarise(across(rv$field.name, mean)) %>%
+                                      dplyr::mutate_at(rv$field.name, funs(round(., 2)))
+        }
+        
+        else{
+          rv$traitSummaryperAcc <- rv$traitsData %>%
+                                      dplyr::group_by(IG) %>%
+                                      dplyr::summarise(across(rv$field.name, max.frequency)) %>%
+                                      dplyr::mutate(across(where(is.character), as.factor))
+        }
+        
+        DT::datatable(rv$traitSummaryperAcc,
+                      rownames = FALSE,
+                      filter = list(position = "top", clear = FALSE),
+                      extensions = 'Buttons',
+                      options = list(scrollX = TRUE,
+                                     dom = "Bfrtip",
+                                     pageLength = 10,
+                                     buttons = list(list(
+                                       extend = "collection",
+                                       buttons = list(
+                                         list(extend = 'csv', filename = paste0(rv$crop,"_",input$traitName,"_summary")),
+                                         list(extend = 'excel', filename = paste0(rv$crop,"_",input$traitName,"_summary"))),
+                                       text = 'Download')),
+                                     columnDefs = list(list(targets = 1, searchable = FALSE))))
+      })
+      
     })
     
     #map traits summary

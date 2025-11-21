@@ -344,7 +344,12 @@ sidebar_trait <- layout_sidebar(
     selectInput("traitName",
                 "Select Trait",
                 c("Trait" = "")),
-    actionButton("getTraitsData", "Get Traits Data")
+    actionButton("getTraitsData", "Get Traits Data"),
+    uiOutput("yearFilter"),
+    uiOutput("populationFilter"),
+    checkboxInput("geoOnly", "Include only accessions with coordinates", value = FALSE),
+    br(),
+    downloadButton("downloadFiltered", "Download Filtered Data")
   ),
   accordion(
     id = "trait_accd",
