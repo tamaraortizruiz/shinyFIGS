@@ -566,6 +566,11 @@ traitSummaryF <- function(df, traitName, factor_trait_info){
   df$Value <- ifelse(as.character(df[[12]]) %in% as.character(fctrs),
                      "Available", "Not Available")
   
+  # Dynamic color palette
+  max_colors <- length(levels(df[[12]]))
+  base_pal <- colorRampPalette(RColorBrewer::brewer.pal(12, "Set3"))
+  extended_pal <- base_pal(max_colors)
+  
   # Proportions by group
   # Create a df for proportions
   var_sym <- rlang::sym(trait)
@@ -593,7 +598,7 @@ traitSummaryF <- function(df, traitName, factor_trait_info){
       ),
       position = "fill"
     ) +
-    scale_fill_manual(values = RColorBrewer::brewer.pal(12, "Set3")) +
+    scale_fill_manual(values = extended_pal) +
     scale_color_manual(values = c("Not Available" = "black", "Available" = NA), guide = "none") +
     scale_linewidth_manual(values = c("Not Available" = 0.4, "Available" = 0), guide = "none") +
     scale_y_continuous(labels = scales::percent_format()) +
@@ -606,7 +611,7 @@ traitSummaryF <- function(df, traitName, factor_trait_info){
                                 color = Value, linewidth = Value)) +
     geom_bar( aes(text = after_stat(count)),
       position = position_dodge2(preserve = "single")) +
-    scale_fill_manual(values = RColorBrewer::brewer.pal(12, "Set3")) +
+    scale_fill_manual(values = extended_pal) +
     scale_color_manual(values = c("Not Available" = "black", "Available" = NA), 
                        guide = "none") +
     scale_linewidth_manual(values = c("Not Available" = 0.4, "Available" = 0), 

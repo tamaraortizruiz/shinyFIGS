@@ -19,6 +19,7 @@ library(stringr)
 library(crosstalk)
 library(DT)
 library(rlang)
+library(grDevices)
 
 
 # Load functions
