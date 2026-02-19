@@ -12,11 +12,15 @@ coreCollectionUI <- function(id){
 coreCollectionMod <- function(input, output, session, rv){
 
   observe({
+    req(rv$data4core)
     updateSelectInput(session, "group", label = "Select a group", choices = colnames(rv$data4core))
     updateSelectInput(session, "uid", label = "Select the unique identifier", choices = colnames(rv$data4core))
   })
   
   core <- reactive({
+    
+    req(rv$data4core, input$group, input$uid, 
+        input$group != "", input$uid != "")
     
     alloc <- input$allocMeth
     cluster_method <- input$clustMeth
@@ -24,35 +28,46 @@ coreCollectionMod <- function(input, output, session, rv){
     group <- input$group
     uid <- input$uid
     
+    data4core <- rv$data4core
+    
     if(group=="PopulationType"){
-      data4core <- rv$data4core %>% filter(PopulationType!="Unknown")
-    }
-    else{
-      data4core <- rv$data4core
+      data4core <- rv$data4core %>% dplyr::filter(PopulationType!="Unknown")
     }
     
-    rownames(data4core) <- data4core[[uid]]
+    req(nrow(data4core) > 0)
+    rownames(data4core) <- as.character(data4core[[uid]])
+    
     climate_columns <- search4pattern(c('tavg*', 'tmin*', 'tmax*', 
                                         'prec*', 'bio*', 'srad*', 
                                         'vapr*', 'wind*'), names(data4core))
+    
     select_columns <- c(group, climate_columns)
-    
     data4core_sub <- data4core[select_columns]
-    data4core_sub_na_omit <- data4core_sub[complete.cases(data4core_sub[[group]]), ]
     
-    data4core_sub_na_omit[[group]] <- droplevels(data4core_sub_na_omit[[group]])
-    new_levels <- levels(as.factor(data4core_sub_na_omit[[group]]))
-    data4core_sub_na_omit[[group]] <- unclass(as.factor(data4core_sub_na_omit[[group]]))
+    data4core_sub_na_omit <- data4core_sub[complete.cases(data4core_sub[[group]]), ]
+    req(nrow(data4core_sub_na_omit) > 0)
+    
+    original_levels <- as.factor(data4core_sub_na_omit[[group]])
+    new_levels <- levels(original_levels)
+    data4core_sub_na_omit[[group]] <- as.integer(original_levels)
     
     withProgress(message = "Developing Core Collection ...", {
-      core <- ccChooser::stratcc(x = data4core_sub_na_omit, groups = data4core_sub_na_omit[[group]], 
-                               alloc = alloc, fraction = fraction, 
-                               clustering = TRUE, cluster_method = cluster_method)
+      core <- ccChooser::stratcc(x = data4core_sub_na_omit, 
+                                 groups = data4core_sub_na_omit[[group]], 
+                                 alloc = alloc, 
+                                 fraction = fraction, 
+                                 clustering = TRUE, 
+                                 cluster_method = cluster_method)
     })
     
-    core[[group]] <- plyr::mapvalues(core[[group]], sort(unique(core[[group]])), 
-                                           new_levels)
-    core[[uid]] <- as.numeric(rownames(core))
+    req(nrow(core) > 0)
+    
+    core[[group]] <- factor(core[[group]], 
+                               levels = seq_along(new_levels), 
+                               labels = new_levels)
+    
+    core[[uid]] <- rownames(core)
+    
     core <- merge(x = core, y = rv$data4core)
     core <- core %>% relocate(climate_columns, .after = last_col())
     
