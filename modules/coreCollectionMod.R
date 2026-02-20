@@ -36,43 +36,55 @@ coreCollectionMod <- function(input, output, session, rv){
     
     req(nrow(data4core) > 0)
     rownames(data4core) <- as.character(data4core[[uid]])
-    
     climate_columns <- search4pattern(c('tavg*', 'tmin*', 'tmax*', 
                                         'prec*', 'bio*', 'srad*', 
                                         'vapr*', 'wind*'), names(data4core))
-    
     select_columns <- c(group, climate_columns)
     data4core_sub <- data4core[select_columns]
     
     data4core_sub_na_omit <- data4core_sub[complete.cases(data4core_sub[[group]]), ]
     req(nrow(data4core_sub_na_omit) > 0)
     
-    original_levels <- as.factor(data4core_sub_na_omit[[group]])
+    current_groups <- as.character(data4core_sub_na_omit[[group]])
+    original_levels <- factor(current_groups)
     new_levels <- levels(original_levels)
     data4core_sub_na_omit[[group]] <- as.integer(original_levels)
     
+    validate(
+      need(nrow(data4core_sub_na_omit) > 0, "No data available after omitting NAs."),
+      need(length(unique(original_levels)) > 0, "No groups found in the selected data.")
+    )
+
+    res_df <- NULL
+
     withProgress(message = "Developing Core Collection ...", {
-      core <- ccChooser::stratcc(x = data4core_sub_na_omit, 
-                                 groups = data4core_sub_na_omit[[group]], 
-                                 alloc = alloc, 
-                                 fraction = fraction, 
-                                 clustering = TRUE, 
-                                 cluster_method = cluster_method)
+      tryCatch({
+        res_df <- ccChooser::stratcc(x = data4core_sub_na_omit,
+                                   groups = data4core_sub_na_omit[[group]],
+                                   alloc = alloc,
+                                   fraction = fraction,
+                                   clustering = TRUE,
+                                   cluster_method = cluster_method)
+      }, error = function(e) {
+        showNotification(paste("Error in StratCC:", e$message), type = "error")
+        return(NULL)
+      })
     })
+
+    req(res_df, nrow(res_df) > 0)
     
-    req(nrow(core) > 0)
+    res_df[[group]] <- factor(res_df[[group]], 
+                            levels = seq_along(new_levels), 
+                            labels = new_levels)
     
-    core[[group]] <- factor(core[[group]], 
-                               levels = seq_along(new_levels), 
-                               labels = new_levels)
+    res_df[[uid]] <- rownames(res_df)
     
-    core[[uid]] <- rownames(core)
     
-    core <- merge(x = core, y = rv$data4core)
-    core <- core %>% relocate(climate_columns, .after = last_col())
+    res_df <- merge(x = res_df, y = rv$data4core)
+    res_df <- res_df %>% dplyr::relocate(climate_columns, .after = last_col())
     
-    list(core, group)
-   })
- 
+    list(res_df, group)
+  })
+  
   return(core)
 }

@@ -19,10 +19,10 @@ extractWCDataMod <- function(input, output, session, rv){
         dplyr::mutate(
           !!rlang::sym(rv$lng) := as.numeric(!!rlang::sym(rv$lng)), 
           !!rlang::sym(rv$lat) := as.numeric(!!rlang::sym(rv$lat))
-        ) %>%
-        dplyr::filter(!is.na(!!rlang::sym(rv$lng)) & !is.na(!!rlang::sym(rv$lat)))
+        )
+      
       df_cleaned <- df_cleaned %>%
-        filter(PopulationType!="Genetic stock" & PopulationType!="Unreleased breeding material" & PopulationType!="Research material")
+        dplyr::filter(PopulationType!="Genetic stock" & PopulationType!="Unreleased breeding material" & PopulationType!="Research material")
       withProgress(message = "Extracting World Clim Data ...", {
         WCdata <- icardaFIGSr::extractWCdata(df_cleaned, long = rv$lng, lat = rv$lat, var = input$var, res = 2.5)
       })
