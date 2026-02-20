@@ -36,9 +36,9 @@ coreCollectionMod <- function(input, output, session, rv){
     
     req(nrow(data4core) > 0)
     rownames(data4core) <- as.character(data4core[[uid]])
-    climate_columns <- search4pattern(c('tavg*', 'tmin*', 'tmax*', 
-                                        'prec*', 'bio*', 'srad*', 
-                                        'vapr*', 'wind*'), names(data4core))
+    climate_columns <- search4pattern(c('^tavg', '^tmin', '^tmax', 
+                                        '^prec', '^bio', '^srad', 
+                                        '^vapr', '^wind'), names(data4core))
     select_columns <- c(group, climate_columns)
     data4core_sub <- data4core[select_columns]
     

@@ -302,7 +302,7 @@ function(input, output, session) {
   })
   
   climVars <- reactive({
-    search4pattern(c('tavg*', 'tmin*', 'tmax*', 'prec*', 'bio*', 'srad*', 'vapr*', 'wind*'), names(climaticData()))
+    search4pattern(c('^tavg', '^tmin', '^tmax', '^prec', '^bio', '^srad', '^vapr', '^wind'), names(climaticData()))
   })
   
   output$selectUI_2 <- renderUI({
